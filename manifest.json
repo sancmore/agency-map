@@ -1,0 +1,16 @@
+{
+  "name": "담당 대리점 지도",
+  "short_name": "대리점지도",
+  "description": "GA 담당 대리점 지도·검색·활동 관리",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#02b350",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
