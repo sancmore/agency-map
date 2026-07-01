@@ -32,8 +32,9 @@
   .shead-btn:hover { background: #029544; }
   .shead { cursor: pointer; user-select: none; }
   .acc-ic { font-size: 11px; color: #666; transition: transform .2s; display: inline-block; }
-  .shead.collapsed .acc-ic { transform: rotate(-90deg); }
-  .shead.collapsed + .filters { display: none; }
+  #app.panel-collapsed .acc-ic { transform: rotate(180deg); }
+  #app.panel-collapsed #sidebar { display: none; }
+  #sidebarBody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .filters { padding: 10px 12px; border-bottom: 1px solid #e3e3e3; }
   .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 8px; }
   .fgrid label { font-size: 11px; color: #666; display: block; margin-bottom: 2px; }
@@ -92,6 +93,12 @@
     .list-toolbar input { width: 100%; }
     .fgrid select { font-size: 13px; padding: 8px 6px; }
     .shead-btn { padding: 6px 11px; font-size: 12px; }
+    #sidebar { max-height: 48vh; }
+    #sidebarBody { overflow-y: auto; }
+    #list { flex: none; overflow: visible; }
+    #app.panel-collapsed #sidebar { display: flex; max-height: none; }
+    #app.panel-collapsed #sidebarBody { display: none; }
+    .shead { background: #e9efe9; }
   }
   /* Z Fold4 커버(초협소) — 필터 1열 */
   @media (max-width: 400px){
@@ -109,6 +116,7 @@
   <span class="brand">담당 대리점</span>
   <button class="navbtn active" id="navMap">지도보기</button>
   <button class="navbtn" id="navList">목록보기</button>
+  <button class="navbtn" id="btnPanel" title="검색/필터 패널 보이기·숨기기">▤ 필터 숨기기</button>
   <span class="spacer"></span>
   <span class="count2">총 <span id="total">0</span>개 · Naver Maps · <span id="shown">0</span>개 표시 · <span class="toolbtn-top" id="changeKey">API 키 변경</span> · <span class="toolbtn-top" id="clearCache">캐시 초기화</span></span>
 </div>
@@ -119,6 +127,7 @@
       <button id="btnUpdateList" class="shead-btn" title="업데이트된 대리점 엑셀을 올려 목록 갱신">목록 업데이트</button>
       <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" style="display:none">
     </div>
+    <div id="sidebarBody">
     <div class="filters">
       <div class="fgrid">
         <div><label>대리점</label><select id="fAgency"><option value="">전체</option></select></div>
@@ -145,6 +154,7 @@
     </div>
     <div id="status">지도 로딩 중…</div>
     <div id="list"></div>
+    </div>
   </div>
   <div id="map"></div>
 </div>
@@ -327,9 +337,14 @@ function bindFilters(){
   document.getElementById('btnUpdateList').addEventListener('click', function(){ document.getElementById('xlsxInput').click(); });
   document.getElementById('xlsxInput').addEventListener('change', function(e){ if (e.target.files && e.target.files[0]) handleListFile(e.target.files[0]); e.target.value=''; });
   var fh = document.getElementById('filterHead');
-  fh.addEventListener('click', function(e){ if (e.target.closest('.shead-btn')) return; fh.classList.toggle('collapsed'); });
-  if (window.matchMedia('(max-width: 600px)').matches) fh.classList.add('collapsed');
+  fh.addEventListener('click', function(e){ if (e.target.closest('.shead-btn')) return; togglePanel(); });
+  var bp = document.getElementById('btnPanel');
+  if (bp) bp.addEventListener('click', togglePanel);
+  if (window.matchMedia('(max-width: 600px)').matches) document.getElementById('app').classList.add('panel-collapsed');
+  updatePanelBtn();
 }
+function togglePanel(){ document.getElementById('app').classList.toggle('panel-collapsed'); updatePanelBtn(); if (map) naver.maps.Event.trigger(map, 'resize'); }
+function updatePanelBtn(){ var c = document.getElementById('app').classList.contains('panel-collapsed'); var b = document.getElementById('btnPanel'); if (b) b.textContent = c ? '▤ 필터 보기' : '▤ 필터 숨기기'; }
 function val(id){ return document.getElementById(id).value; }
 function applySearch(){
   activeFilter = { agency: val('fAgency'), hq: val('fHq'), branch: val('fBranch'), fp: val('fFp'), line: val('fLine'), station: val('fStation') };
@@ -354,6 +369,7 @@ function switchView(name){
   document.getElementById('view-list').style.display = isMap ? 'none' : 'flex';
   document.getElementById('navMap').classList.toggle('active', isMap);
   document.getElementById('navList').classList.toggle('active', !isMap);
+  var bp = document.getElementById('btnPanel'); if (bp) bp.style.display = isMap ? '' : 'none';
   if (isMap && map) naver.maps.Event.trigger(map, 'resize');
   if (!isMap) renderList();
 }
