@@ -1,0 +1,7 @@
+# 임시/잠금/백업 파일
+~$*
+*_백업*.xlsx
+*_원본*.xlsx
+.DS_Store
+Thumbs.db
+*.tmp

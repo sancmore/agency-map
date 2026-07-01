@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대리점 활동 관리 시스템 — UI 목업</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Malgun Gothic',-apple-system,sans-serif;background:#eef1f4;color:#1f2937;height:100vh;display:flex;overflow:hidden}
+  .mock-badge{position:fixed;top:10px;right:14px;background:#111827;color:#fff;font-size:11px;padding:4px 10px;border-radius:20px;opacity:.8;z-index:99}
+  /* 사이드 내비 */
+  #nav{width:210px;min-width:210px;background:#0f2e1f;color:#cdeBDA;color:#cfe9da;display:flex;flex-direction:column;padding:16px 0}
+  #nav .logo{font-size:15px;font-weight:800;color:#fff;padding:6px 18px 16px;line-height:1.4}
+  #nav .logo small{display:block;font-weight:400;font-size:11px;color:#7fd6a3;margin-top:2px}
+  #nav a{display:flex;align-items:center;gap:10px;padding:11px 18px;color:#bfe3cf;text-decoration:none;font-size:13.5px;cursor:pointer;border-left:3px solid transparent}
+  #nav a:hover{background:#163a28}
+  #nav a.active{background:#16442e;color:#fff;border-left-color:#02b350;font-weight:700}
+  #nav .ic{width:18px;text-align:center}
+  #nav .navfoot{margin-top:auto;padding:14px 18px;font-size:11px;color:#5e9c77;border-top:1px solid #1c4631}
+  /* 본문 */
+  #main{flex:1;overflow:auto;display:flex;flex-direction:column}
+  .topbar{height:56px;background:#fff;border-bottom:1px solid #e3e8ee;display:flex;align-items:center;padding:0 22px;gap:14px;position:sticky;top:0;z-index:10}
+  .topbar h1{font-size:17px;font-weight:800}
+  .topbar .sub{font-size:12px;color:#8a96a3}
+  .topbar .right{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:12px;color:#5b6b7a}
+  .pill{background:#e9f7ef;color:#067a3c;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700}
+  .content{padding:22px;flex:1}
+  .screen{display:none}
+  .screen.active{display:block}
+  /* 공통 카드 */
+  .grid{display:grid;gap:16px}
+  .card{background:#fff;border:1px solid #e6eaef;border-radius:12px;padding:16px}
+  .card h3{font-size:13px;color:#5b6b7a;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .kpi{display:flex;flex-direction:column;gap:6px}
+  .kpi .v{font-size:26px;font-weight:800;color:#111827}
+  .kpi .l{font-size:12px;color:#8a96a3}
+  .kpi .d{font-size:12px;font-weight:700}
+  .up{color:#067a3c}.down{color:#d23b3b}
+  .btn{background:#02b350;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer}
+  .btn.ghost{background:#fff;border:1px solid #cdd6df;color:#41505f}
+  .btn.sm{padding:6px 11px;font-size:12px}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700}
+  .muted{color:#8a96a3}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid #eef1f4}
+  th{color:#8a96a3;font-weight:700;font-size:12px}
+  /* 활동유형 색 */
+  .t-edu{background:#e0edff;color:#2563eb}.t-news{background:#ede9fe;color:#7c3aed}
+  .t-promo{background:#fff2dd;color:#d97706}.t-meal{background:#fde4e4;color:#dc2626}
+  .t-snack{background:#dcfbe9;color:#0a9d52}.t-etc{background:#eceff2;color:#5b6b7a}
+  /* 지도 목업 */
+  .mapbox{background:#eef3f0;border-radius:12px;position:relative;overflow:hidden;border:1px solid #dde6e0}
+  .mapbox .grid-bg{position:absolute;inset:0;background-image:linear-gradient(#e2eae5 1px,transparent 1px),linear-gradient(90deg,#e2eae5 1px,transparent 1px);background-size:34px 34px;opacity:.7}
+  .pin{position:absolute;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:800;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+  .pin span{transform:rotate(45deg)}
+  /* 알림/리스트 */
+  .li{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #f0f3f6;font-size:13px}
+  .li:last-child{border-bottom:none}
+  .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .avatar{width:30px;height:30px;border-radius:8px;background:#e9f7ef;color:#067a3c;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .chip{border:1px solid #cdd6df;border-radius:20px;padding:7px 13px;font-size:13px;cursor:pointer;background:#fff;font-weight:600;color:#41505f}
+  .chip.on{border-color:#02b350;background:#e9f7ef;color:#067a3c}
+  .timeline .ev{display:flex;gap:12px;padding:10px 0;border-bottom:1px dashed #e6eaef}
+  .timeline .when{font-size:11px;color:#8a96a3;width:74px;flex-shrink:0}
+  .bar-row{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:12px}
+  .bar-row .lab{width:64px;color:#5b6b7a}
+  .bar-track{flex:1;background:#eef1f4;border-radius:6px;height:14px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:6px}
+  /* 폰 프레임 */
+  .phone{width:340px;margin:6px auto;border:10px solid #1f2937;border-radius:32px;background:#fff;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .phone .ph-top{background:#02b350;color:#fff;padding:14px 16px;font-weight:800;font-size:15px}
+  .phone .ph-body{padding:14px 16px;max-height:560px;overflow:auto}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:12px;color:#5b6b7a;font-weight:700;margin-bottom:5px}
+  .field input,.field select,.field textarea{width:100%;border:1px solid #cdd6df;border-radius:8px;padding:9px;font-size:13px;font-family:inherit}
+  .cols{display:flex;gap:14px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="mock-badge">UI 목업 · 샘플 데이터</div>
+<div id="nav">
+  <div class="logo">대리점 활동관리<small>GA 영업 마스터</small></div>
+  <a data-s="dash" class="active"><span class="ic">▦</span> 대시보드</a>
+  <a data-s="map"><span class="ic">◉</span> 지도</a>
+  <a data-s="plan"><span class="ic">🗺</span> 활동 계획</a>
+  <a data-s="log"><span class="ic">✎</span> 활동 기록</a>
+  <a data-s="agency"><span class="ic">🏢</span> 대리점 상세</a>
+  <a data-s="analysis"><span class="ic">📊</span> 활동·실적 분석</a>
+  <div class="navfoot">v0.1 시안 · 김휘준</div>
+</div>
+
+<div id="main">
+  <div class="topbar">
+    <h1 id="scrTitle">대시보드</h1>
+    <span class="sub" id="scrSub">2026년 6월 · 활동 현황 요약</span>
+    <div class="right"><span class="pill">담당 대리점 155</span> 김휘준 트레이너</div>
+  </div>
+  <div class="content">
+
+  <!-- 대시보드 -->
+  <section class="screen active" id="s-dash">
+    <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="card kpi"><div class="l">이번달 방문</div><div class="v">42<span style="font-size:14px"> 건</span></div><div class="d up">▲ 8 vs 지난달</div></div>
+      <div class="card kpi"><div class="l">교육 시행</div><div class="v">11<span style="font-size:14px"> 회</span></div><div class="d up">▲ 3</div></div>
+      <div class="card kpi"><div class="l">신계약(이번달)</div><div class="v">87<span style="font-size:14px"> 건</span></div><div class="d up">▲ 12% · 3.2억</div></div>
+      <div class="card kpi"><div class="l">활동대비 실적지수</div><div class="v">+18%</div><div class="d up">활동 多 대리점 우세</div></div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1.3fr 1fr;margin-top:16px">
+      <div class="card">
+        <h3>이번주 추천 동선 <span class="muted" style="font-weight:400">· 동선·인원·이력 기반 자동 추천</span></h3>
+        <div class="mapbox" style="height:240px">
+          <div class="grid-bg"></div>
+          <svg style="position:absolute;inset:0;width:100%;height:100%">
+            <polyline points="60,180 150,120 240,150 330,90 430,140 520,70" fill="none" stroke="#02b350" stroke-width="2.5" stroke-dasharray="5 4"/>
+          </svg>
+          <div class="pin" style="left:48px;top:158px;background:#dc2626"><span>1</span></div>
+          <div class="pin" style="left:138px;top:98px;background:#d97706"><span>2</span></div>
+          <div class="pin" style="left:228px;top:128px;background:#2563eb"><span>3</span></div>
+          <div class="pin" style="left:318px;top:68px;background:#02b350"><span>4</span></div>
+          <div class="pin" style="left:418px;top:118px;background:#2563eb"><span>5</span></div>
+          <div class="pin" style="left:508px;top:48px;background:#02b350"><span>6</span></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <span class="muted" style="font-size:12px">월요일 · 강남권 6곳 · 예상 이동 2h40m</span>
+          <button class="btn sm" style="margin-left:auto" onclick="go('plan')">계획 열기</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>방문 필요 대리점 <span class="muted" style="font-weight:400">· 최근 미방문 순</span></h3>
+        <div class="li"><span class="dot" style="background:#dc2626"></span><b>한결지사</b><span class="muted">종로 · 위촉 5명</span><span style="margin-left:auto;color:#dc2626;font-weight:700">62일 경과</span></div>
+        <div class="li"><span class="dot" style="background:#dc2626"></span><b>리치강북센터</b><span class="muted">강북 · 위촉 8명</span><span style="margin-left:auto;color:#dc2626;font-weight:700">54일</span></div>
+        <div class="li"><span class="dot" style="background:#d97706"></span><b>라이나원</b><span class="muted">종로 · 위촉 11명</span><span style="margin-left:auto;color:#d97706;font-weight:700">38일</span></div>
+        <div class="li"><span class="dot" style="background:#d97706"></span><b>부자산관리</b><span class="muted">동대문 · 위촉 2명</span><span style="margin-left:auto;color:#d97706;font-weight:700">31일</span></div>
+        <div class="li"><span class="dot" style="background:#02b350"></span><b>선릉</b><span class="muted">강남 · 위촉 14명</span><span style="margin-left:auto;color:#067a3c;font-weight:700">12일</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>활동량 vs 신계약 실적 <span class="muted" style="font-weight:400">· 대리점별</span></h3>
+      <svg viewBox="0 0 760 220" style="width:100%;height:220px">
+        <line x1="50" y1="190" x2="740" y2="190" stroke="#cdd6df"/><line x1="50" y1="20" x2="50" y2="190" stroke="#cdd6df"/>
+        <text x="30" y="24" font-size="10" fill="#8a96a3">신계약</text><text x="700" y="208" font-size="10" fill="#8a96a3">활동량</text>
+        <line x1="50" y1="190" x2="740" y2="60" stroke="#02b350" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.6"/>
+        <g fill="#02b350" opacity="0.8">
+          <circle cx="110" cy="170" r="6"/><circle cx="160" cy="160" r="6"/><circle cx="210" cy="150" r="7"/><circle cx="250" cy="158" r="6"/>
+          <circle cx="300" cy="135" r="8"/><circle cx="350" cy="120" r="7"/><circle cx="400" cy="128" r="6"/><circle cx="450" cy="100" r="9"/>
+          <circle cx="520" cy="95" r="8"/><circle cx="560" cy="80" r="10"/><circle cx="610" cy="88" r="7"/><circle cx="670" cy="62" r="11"/>
+        </g>
+        <circle cx="160" cy="160" r="6" fill="#d97706"/><circle cx="250" cy="158" r="6" fill="#dc2626"/>
+        <text x="560" y="150" font-size="11" fill="#5b6b7a">활동이 많을수록 신계약↑ (양의 상관)</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 지도 -->
+  <section class="screen" id="s-map">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:14px 16px;border-bottom:1px solid #eef1f4;display:flex;gap:8px;align-items:center">
+        <b style="font-size:14px">대리점 지도</b>
+        <span class="muted" style="font-size:12px">마커 색 = 실적/활동 상태</span>
+        <span style="margin-left:auto;font-size:12px"><span class="dot" style="background:#dc2626;display:inline-block;margin-right:4px"></span>관리필요 <span class="dot" style="background:#d97706;display:inline-block;margin:0 4px 0 10px"></span>보통 <span class="dot" style="background:#02b350;display:inline-block;margin:0 4px 0 10px"></span>우수</span>
+      </div>
+      <div class="mapbox" style="height:430px;border-radius:0;border:none">
+        <div class="grid-bg"></div>
+        <div class="pin" style="left:140px;top:120px;background:#dc2626"><span>!</span></div>
+        <div class="pin" style="left:250px;top:200px;background:#02b350"><span>◆</span></div>
+        <div class="pin" style="left:360px;top:140px;background:#d97706"><span>◆</span></div>
+        <div class="pin" style="left:470px;top:240px;background:#02b350"><span>◆</span></div>
+        <div class="pin" style="left:560px;top:160px;background:#dc2626"><span>!</span></div>
+        <div class="pin" style="left:300px;top:300px;background:#02b350"><span>◆</span></div>
+        <div class="card" style="position:absolute;right:18px;top:18px;width:230px;box-shadow:0 6px 20px rgba(0,0,0,.12)">
+          <b style="font-size:14px">한결지사</b> <span class="tag t-meal">관리필요</span>
+          <div class="muted" style="font-size:12px;margin:4px 0">더블유에셋 · 종로 · 위촉 5명</div>
+          <div style="font-size:12px;margin:6px 0">최근 방문 <b style="color:#dc2626">62일 전</b> · 신계약 3건(↓)</div>
+          <div style="display:flex;gap:6px;margin-top:8px"><button class="btn sm" onclick="go('log')">방문 기록</button><button class="btn sm ghost" onclick="go('agency')">상세</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 활동 계획 수립 -->
+  <section class="screen" id="s-plan">
+    <div class="card" style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+      <b>기간</b><select style="padding:7px;border-radius:8px;border:1px solid #cdd6df"><option>이번주 (6/30~7/4)</option><option>다음주</option></select>
+      <button class="btn">⚡ 자동 계획 생성</button>
+      <span class="muted" style="margin-left:8px;font-size:12.5px">추천 방문 <b style="color:#067a3c">12곳</b> · 예상 이동 <b>3h20m</b> · 5일 분산</span>
+      <button class="btn ghost sm" style="margin-left:auto">계획 확정</button>
+    </div>
+    <div class="grid" style="grid-template-columns:300px 1fr 320px">
+      <div class="card">
+        <h3>추천 대상 <span class="muted" style="font-weight:400">· 우선순위 점수순</span></h3>
+        <div class="li"><div class="avatar">92</div><div><b>선릉</b><div class="muted" style="font-size:11px">강남 · 위촉14</div><div style="margin-top:3px"><span class="tag t-edu">교육제안</span></div></div></div>
+        <div class="li"><div class="avatar">88</div><div><b>한결지사</b><div class="muted" style="font-size:11px">종로 · 62일미방문</div><div style="margin-top:3px"><span class="tag t-meal">집중케어</span></div></div></div>
+        <div class="li"><div class="avatar">81</div><div><b>라이나원</b><div class="muted" style="font-size:11px">종로 · 위촉11</div><div style="margin-top:3px"><span class="tag t-news">소식지</span></div></div></div>
+        <div class="li"><div class="avatar">76</div><div><b>리치강북</b><div class="muted" style="font-size:11px">강북 · 54일</div><div style="margin-top:3px"><span class="tag t-promo">판촉물</span></div></div></div>
+        <div class="li"><div class="avatar">70</div><div><b>부자산관리</b><div class="muted" style="font-size:11px">동대문 · 신규</div><div style="margin-top:3px"><span class="tag t-snack">관계형성</span></div></div></div>
+      </div>
+      <div class="card">
+        <h3>동선 미리보기 <span class="muted" style="font-weight:400">· Naver Directions 기반 최적 순서</span></h3>
+        <div class="mapbox" style="height:330px">
+          <div class="grid-bg"></div>
+          <svg style="position:absolute;inset:0;width:100%;height:100%"><polyline points="80,250 170,180 270,210 360,130 450,170" fill="none" stroke="#02b350" stroke-width="3"/></svg>
+          <div class="pin" style="left:68px;top:228px;background:#02b350"><span>1</span></div>
+          <div class="pin" style="left:158px;top:158px;background:#02b350"><span>2</span></div>
+          <div class="pin" style="left:258px;top:188px;background:#02b350"><span>3</span></div>
+          <div class="pin" style="left:348px;top:108px;background:#02b350"><span>4</span></div>
+          <div class="pin" style="left:438px;top:148px;background:#02b350"><span>5</span></div>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:10px">월요일 · 강남→서초 5곳 · 이동 1h05m · 면담 합계 2h30m</div>
+      </div>
+      <div class="card">
+        <h3>요일별 일정 <span class="muted" style="font-weight:400">· 드래그로 조정</span></h3>
+        <div style="font-size:12px;color:#067a3c;font-weight:700;margin:6px 0 4px">월 (강남권)</div>
+        <div class="li" style="background:#f6fbf8;border-radius:8px;padding:8px"><b>선릉</b> <span class="tag t-edu" style="margin-left:auto">교육</span></div>
+        <div class="li" style="background:#f6fbf8;border-radius:8px;padding:8px"><b>대치H타워</b> <span class="tag t-news" style="margin-left:auto">소식지</span></div>
+        <div style="font-size:12px;color:#067a3c;font-weight:700;margin:10px 0 4px">화 (종로·동대문)</div>
+        <div class="li" style="background:#f6fbf8;border-radius:8px;padding:8px"><b>한결지사</b> <span class="tag t-meal" style="margin-left:auto">식사</span></div>
+        <div class="li" style="background:#f6fbf8;border-radius:8px;padding:8px"><b>라이나원</b> <span class="tag t-promo" style="margin-left:auto">판촉물</span></div>
+        <div style="font-size:12px;color:#067a3c;font-weight:700;margin:10px 0 4px">수 (강북·노원)</div>
+        <div class="li" style="background:#f6fbf8;border-radius:8px;padding:8px"><b>리치강북</b> <span class="tag t-snack" style="margin-left:auto">간식</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 활동 기록 (모바일) -->
+  <section class="screen" id="s-log">
+    <div class="cols" style="align-items:flex-start">
+      <div class="phone">
+        <div class="ph-top">＜ 활동 기록</div>
+        <div class="ph-body">
+          <div class="field"><label>대리점 / 지점</label><select><option>한결지사 (더블유에셋 · 종로)</option></select></div>
+          <div class="field"><label>방문 일시</label><input type="text" value="2026-06-30 14:00"></div>
+          <div class="field"><label>활동 유형 (복수 선택)</label>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:4px">
+              <span class="chip on">교육</span><span class="chip">소식지</span><span class="chip on">판촉물</span>
+              <span class="chip">식사</span><span class="chip on">간식</span><span class="chip">기타</span>
+            </div>
+          </div>
+          <div class="field"><label>비용 (선택)</label><input type="text" value="35,000 원"></div>
+          <div class="field"><label>면담자</label><input type="text" value="김지점장"></div>
+          <div class="field"><label>활동 내용 / 결과</label><textarea rows="3">신상품 교육 진행. 판촉물(달력) 전달. 다음달 합동 세미나 협의 → 7/15 예정.</textarea></div>
+          <div class="field"><label>사진</label><div style="display:flex;gap:8px"><div style="width:56px;height:56px;border:1px dashed #cdd6df;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#aab4be">＋</div><div style="width:56px;height:56px;background:#e9f7ef;border-radius:8px"></div></div></div>
+          <button class="btn" style="width:100%;padding:12px">저장하기</button>
+        </div>
+      </div>
+      <div class="card" style="flex:1;min-width:280px">
+        <h3>입력 설계 포인트</h3>
+        <ul style="font-size:13px;line-height:1.9;color:#41505f;padding-left:18px">
+          <li>현장에서 <b>30초 내 입력</b> 목표 — 유형은 칩(복수선택), 비용·메모는 선택</li>
+          <li>활동유형: <span class="tag t-edu">교육</span><span class="tag t-news">소식지</span><span class="tag t-promo">판촉물</span><span class="tag t-meal">식사</span><span class="tag t-snack">간식</span><span class="tag t-etc">기타</span> (확장 가능)</li>
+          <li>계획에서 들어오면 <b>계획-실적 자동 매칭</b>(예정 vs 실제)</li>
+          <li>사진·서명·위치(GPS) 자동 기록 옵션 → 활동 신뢰성</li>
+          <li>저장 즉시 대리점 <b>타임라인·실적분석</b>에 반영</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 대리점 상세 -->
+  <section class="screen" id="s-agency">
+    <div class="card" style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <div class="avatar" style="width:48px;height:48px;font-size:16px">한</div>
+      <div><div style="font-size:18px;font-weight:800">한결지사 <span class="tag t-meal" style="vertical-align:middle">관리필요</span></div>
+      <div class="muted" style="font-size:12.5px">더블유에셋 · 종로구 · 위촉설계사 5명 · 가까운 역 종로5가(1호선) 180m</div></div>
+      <button class="btn" style="margin-left:auto" onclick="go('log')">＋ 활동 기록</button>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1.4fr">
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>다음 추천 액션</h3>
+          <div class="li"><span class="tag t-edu">교육</span> 신상품 교육 (마지막 92일 전)</div>
+          <div class="li"><span class="tag t-meal">식사</span> 지점장 관계 케어 (실적 하락 신호)</div>
+          <button class="btn sm" style="margin-top:8px" onclick="go('plan')">계획에 추가</button>
+        </div>
+        <div class="card">
+          <h3>요약 지표</h3>
+          <div class="bar-row"><div class="lab">올해 방문</div><div class="bar-track"><div class="bar-fill" style="width:40%;background:#02b350"></div></div><b>8회</b></div>
+          <div class="bar-row"><div class="lab">교육</div><div class="bar-track"><div class="bar-fill" style="width:20%;background:#2563eb"></div></div><b>2회</b></div>
+          <div class="bar-row"><div class="lab">판촉비</div><div class="bar-track"><div class="bar-fill" style="width:55%;background:#d97706"></div></div><b>21만원</b></div>
+          <div class="bar-row"><div class="lab">신계약</div><div class="bar-track"><div class="bar-fill" style="width:30%;background:#7c3aed"></div></div><b>14건</b></div>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:16px">
+          <h3>신계약 실적 추이 <span class="muted" style="font-weight:400">· 활동 표시</span></h3>
+          <svg viewBox="0 0 520 180" style="width:100%;height:180px">
+            <line x1="36" y1="150" x2="500" y2="150" stroke="#cdd6df"/>
+            <polyline points="36,120 110,108 184,124 258,80 332,96 406,60 480,72" fill="none" stroke="#7c3aed" stroke-width="2.5"/>
+            <g fill="#7c3aed"><circle cx="36" cy="120" r="3"/><circle cx="110" cy="108" r="3"/><circle cx="184" cy="124" r="3"/><circle cx="258" cy="80" r="3"/><circle cx="332" cy="96" r="3"/><circle cx="406" cy="60" r="3"/><circle cx="480" cy="72" r="3"/></g>
+            <g font-size="9" fill="#aab4be"><text x="24" y="168">1월</text><text x="172" y="168">3월</text><text x="320" y="168">5월</text><text x="468" y="168">7월</text></g>
+            <line x1="258" y1="30" x2="258" y2="150" stroke="#2563eb" stroke-dasharray="3 3" opacity=".6"/><text x="262" y="40" font-size="9" fill="#2563eb">교육 시행</text>
+          </svg>
+          <div class="muted" style="font-size:12px">교육 시행(4월) 이후 신계약 상승 추세</div>
+        </div>
+        <div class="card">
+          <h3>활동 타임라인</h3>
+          <div class="timeline">
+            <div class="ev"><div class="when">06-30</div><div><span class="tag t-edu">교육</span> <span class="tag t-snack">간식</span> 신상품 교육·달력 전달 <div class="muted" style="font-size:11px">김지점장 면담</div></div></div>
+            <div class="ev"><div class="when">06-12</div><div><span class="tag t-news">소식지</span> 월간 소식지 전달</div></div>
+            <div class="ev"><div class="when">05-20</div><div><span class="tag t-meal">식사</span> 지점장 오찬 간담 <div class="muted" style="font-size:11px">하반기 캠페인 협의</div></div></div>
+            <div class="ev"><div class="when">04-15</div><div><span class="tag t-edu">교육</span> 절판 대응 교육 (12명 참석)</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 분석 -->
+  <section class="screen" id="s-analysis">
+    <div class="grid" style="grid-template-columns:1.4fr 1fr">
+      <div class="card">
+        <h3>활동량 vs 신계약 실적 <span class="muted" style="font-weight:400">· 점 크기=위촉인원</span></h3>
+        <svg viewBox="0 0 600 280" style="width:100%;height:280px">
+          <line x1="48" y1="240" x2="580" y2="240" stroke="#cdd6df"/><line x1="48" y1="20" x2="48" y2="240" stroke="#cdd6df"/>
+          <text x="20" y="22" font-size="10" fill="#8a96a3">신계약</text><text x="540" y="258" font-size="10" fill="#8a96a3">활동점수</text>
+          <line x1="48" y1="240" x2="580" y2="70" stroke="#02b350" stroke-dasharray="5 4" opacity=".6"/>
+          <g fill="#02b350" opacity=".75"><circle cx="100" cy="215" r="7"/><circle cx="150" cy="205" r="6"/><circle cx="200" cy="195" r="9"/><circle cx="250" cy="200" r="6"/><circle cx="300" cy="170" r="11"/><circle cx="350" cy="150" r="8"/><circle cx="400" cy="158" r="7"/><circle cx="440" cy="120" r="13"/><circle cx="500" cy="110" r="9"/><circle cx="545" cy="80" r="14"/></g>
+          <circle cx="150" cy="205" r="6" fill="#dc2626"/><circle cx="250" cy="200" r="6" fill="#d97706"/>
+          <text x="360" y="205" font-size="11" fill="#5b6b7a">활동 적고 실적 낮은 구간 → 우선 케어</text>
+        </svg>
+      </div>
+      <div class="card">
+        <h3>활동유형별 ROI <span class="muted" style="font-weight:400">· 비용 대비 신계약 수수료</span></h3>
+        <div class="bar-row"><div class="lab">교육</div><div class="bar-track"><div class="bar-fill" style="width:92%;background:#2563eb"></div></div><b>4.2x</b></div>
+        <div class="bar-row"><div class="lab">소식지</div><div class="bar-track"><div class="bar-fill" style="width:58%;background:#7c3aed"></div></div><b>2.6x</b></div>
+        <div class="bar-row"><div class="lab">판촉물</div><div class="bar-track"><div class="bar-fill" style="width:70%;background:#d97706"></div></div><b>3.1x</b></div>
+        <div class="bar-row"><div class="lab">식사</div><div class="bar-track"><div class="bar-fill" style="width:44%;background:#dc2626"></div></div><b>1.9x</b></div>
+        <div class="bar-row"><div class="lab">간식</div><div class="bar-track"><div class="bar-fill" style="width:36%;background:#10b981"></div></div><b>1.6x</b></div>
+        <div class="muted" style="font-size:11.5px;margin-top:8px">＊ 샘플 — 실제 데이터 적재 후 산출</div>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:16px">
+      <div class="card">
+        <h3>인사이트</h3>
+        <div class="li"><span class="dot" style="background:#2563eb"></span>교육 시행 대리점, 시행 후 6주 신계약 <b style="color:#067a3c">+18%</b></div>
+        <div class="li"><span class="dot" style="background:#dc2626"></span>4주 이상 미방문 23곳 — 평균 신계약 <b style="color:#dc2626">-12%</b></div>
+        <div class="li"><span class="dot" style="background:#d97706"></span>판촉물 ROI 상위 권역: <b>강남·서초</b></div>
+        <div class="li"><span class="dot" style="background:#02b350"></span>위촉 10명↑ 대리점이 전체 신계약의 <b>61%</b> 기여</div>
+      </div>
+      <div class="card">
+        <h3>대리점 리더보드 <span class="muted" style="font-weight:400">· 활동대비 실적</span></h3>
+        <table>
+          <tr><th>대리점</th><th>활동</th><th>신계약</th><th>효율</th></tr>
+          <tr><td>선릉</td><td>12</td><td>34건</td><td><span class="tag t-snack">우수</span></td></tr>
+          <tr><td>라이나원</td><td>9</td><td>21건</td><td><span class="tag t-snack">우수</span></td></tr>
+          <tr><td>한결지사</td><td>8</td><td>14건</td><td><span class="tag t-promo">보통</span></td></tr>
+          <tr><td>부자산관리</td><td>3</td><td>4건</td><td><span class="tag t-meal">저조</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  </div>
+</div>
+
+<script>
+  var titles={dash:['대시보드','2026년 6월 · 활동 현황 요약'],map:['지도','대리점 위치·상태'],plan:['활동 계획 수립','동선·인원·이력 기반 추천'],log:['활동 기록','현장 빠른 입력'],agency:['대리점 상세','프로필·이력·실적'],analysis:['활동·실적 분석','활동이 실적으로 이어지는가']};
+  function go(s){
+    document.querySelectorAll('#nav a').forEach(function(a){a.classList.toggle('active',a.dataset.s===s);});
+    document.querySelectorAll('.screen').forEach(function(sec){sec.classList.remove('active');});
+    document.getElementById('s-'+s).classList.add('active');
+    document.getElementById('scrTitle').textContent=titles[s][0];
+    document.getElementById('scrSub').textContent=titles[s][1];
+    document.getElementById('main').scrollTop=0;
+  }
+  document.querySelectorAll('#nav a').forEach(function(a){a.addEventListener('click',function(){go(a.dataset.s);});});
+  document.querySelectorAll('.chip').forEach(function(c){c.addEventListener('click',function(){c.classList.toggle('on');});});
+</script>
+</body>
+</html>

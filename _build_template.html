@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>담당 대리점 지도</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: 'Malgun Gothic', -apple-system, sans-serif; }
+  #topnav { height: 46px; background: #02b350; color: #fff; display: flex; align-items: center; padding: 0 14px; gap: 6px; }
+  #topnav .brand { font-weight: 700; font-size: 15px; margin-right: 14px; }
+  #topnav .navbtn { background: transparent; color: #d6ffe6; border: none; padding: 8px 14px; font-size: 14px; cursor: pointer; border-radius: 6px 6px 0 0; }
+  #topnav .navbtn.active { background: #fff; color: #02b350; font-weight: 700; }
+  #topnav .spacer { flex: 1; }
+  #topnav .count2 { font-size: 12px; color: #eafff2; }
+  #topnav .toolbtn-top { color: #fff; cursor: pointer; text-decoration: underline; }
+  #topnav .toolbtn-top:hover { color: #d6ffe6; }
+  .view { height: calc(100vh - 46px); }
+  #app { display: flex; }
+  #sidebar { width: 340px; min-width: 340px; display: flex; flex-direction: column; border-right: 1px solid #e3e3e3; background: #fafafa; height: 100%; }
+  #map { flex: 1; height: 100%; }
+  .shead { padding: 8px 14px; background: #f0f0f0; border-bottom: 1px solid #e3e3e3; font-size: 13px; font-weight: 600; color: #444; display: flex; align-items: center; gap: 8px; }
+  .shead-btn { margin-left: auto; background: #02b350; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+  .shead-btn:hover { background: #029544; }
+  .filters { padding: 10px 12px; border-bottom: 1px solid #e3e3e3; }
+  .fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 8px; }
+  .fgrid label { font-size: 11px; color: #666; display: block; margin-bottom: 2px; }
+  .fgrid select { width: 100%; padding: 6px 6px; border: 1px solid #ccc; border-radius: 6px; font-size: 12px; background: #fff; }
+  .fbtns { display: flex; gap: 6px; margin-top: 10px; }
+  .btn-search { flex: 1; background: #02b350; color: #fff; border: none; padding: 9px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 700; }
+  .btn-search:hover { background: #029544; }
+  .btn-reset { background: #eee; border: 1px solid #ccc; border-radius: 6px; padding: 9px 14px; cursor: pointer; font-size: 13px; color: #555; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; font-size: 11px; color: #555; }
+  .legend i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 4px; vertical-align: middle; border: 1px solid #fff; box-shadow: 0 0 1px rgba(0,0,0,.5); }
+  #status { padding: 8px 12px; font-size: 12px; color: #555; background: #fff7e6; border-bottom: 1px solid #f0e0c0; }
+  #status.done { background: #e8f9ee; }
+  #list { flex: 1; overflow-y: auto; }
+  .item { padding: 10px 12px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 13px; }
+  .item:hover { background: #eef9f1; }
+  .item .name { font-weight: 600; color: #111; }
+  .item .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+  .item .meta { color: #777; font-size: 11px; margin-top: 2px; }
+  .item .addr { color: #999; font-size: 11px; margin-top: 2px; }
+  .item .stninfo { color: #0a7d3b; font-size: 11px; margin-top: 2px; }
+  .item.fail { opacity: .5; }
+  .iw { position: relative; padding: 10px 26px 10px 12px; font-size: 13px; max-width: 240px; line-height: 1.5; }
+  .iw-close { position: absolute; top: 3px; right: 7px; cursor: pointer; color: #999; font-size: 17px; line-height: 1; font-weight: 700; }
+  .iw-close:hover { color: #333; }
+  .iw b { font-size: 14px; }
+  .iw .tel a { color: #03c75a; text-decoration: none; }
+  .count { font-size: 11px; color: #888; padding: 6px 12px; }
+  .toolbtn { font-size: 11px; color: #03c75a; cursor: pointer; text-decoration: underline; }
+  #view-list { display: none; flex-direction: column; }
+  .list-toolbar { padding: 10px 14px; border-bottom: 1px solid #e3e3e3; background: #fafafa; display: flex; gap: 10px; align-items: center; font-size: 13px; }
+  .list-toolbar input { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; width: 280px; }
+  .list-toolbar .note { color: #888; font-size: 12px; }
+  .table-wrap { flex: 1; overflow: auto; }
+  table.agency { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.agency th, table.agency td { border-bottom: 1px solid #eee; padding: 8px 10px; text-align: left; vertical-align: top; white-space: nowrap; }
+  table.agency th { position: sticky; top: 0; background: #f4f7f5; color: #333; font-weight: 700; z-index: 1; }
+  table.agency td.addr { white-space: normal; min-width: 280px; color: #555; }
+  table.agency tr:hover td { background: #f3fbf6; }
+  table.agency .stn { font-weight: 600; color: #0a7d3b; }
+  table.agency .dist { color: #555; }
+  table.agency .muted { color: #bbb; }
+  .keybox { padding: 40px; max-width: 520px; margin: auto; }
+  .keybox input { width: 100%; padding: 10px; font-size: 14px; margin: 10px 0; }
+  .keybox button { padding: 10px 18px; background: #03c75a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+</style>
+</head>
+<body>
+<div id="topnav">
+  <span class="brand">담당 대리점</span>
+  <button class="navbtn active" id="navMap">지도보기</button>
+  <button class="navbtn" id="navList">목록보기</button>
+  <span class="spacer"></span>
+  <span class="count2">총 <span id="total">0</span>개 · Naver Maps · <span id="shown">0</span>개 표시 · <span class="toolbtn-top" id="changeKey">API 키 변경</span> · <span class="toolbtn-top" id="clearCache">캐시 초기화</span></span>
+</div>
+
+<div id="app" class="view">
+  <div id="sidebar">
+    <div class="shead">지점 검색 / 필터
+      <button id="btnUpdateList" class="shead-btn" title="업데이트된 대리점 엑셀을 올려 목록 갱신">목록 업데이트</button>
+      <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" style="display:none">
+    </div>
+    <div class="filters">
+      <div class="fgrid">
+        <div><label>대리점</label><select id="fAgency"><option value="">전체</option></select></div>
+        <div><label>본부</label><select id="fHq"><option value="">전체</option></select></div>
+        <div><label>지점명</label><select id="fBranch"><option value="">전체</option></select></div>
+        <div><label>위촉설계사수</label><select id="fFp">
+          <option value="">전체</option>
+          <option value="lt5">5명 미만</option>
+          <option value="5to9">5~9명</option>
+          <option value="gte10">10명 이상</option>
+        </select></div>
+        <div><label>지하철 호선</label><select id="fLine"><option value="">전체</option></select></div>
+        <div><label>역명</label><select id="fStation"><option value="">전체</option></select></div>
+      </div>
+      <div class="fbtns">
+        <button id="btnSearch" class="btn-search">검색하기</button>
+        <button id="btnReset" class="btn-reset">초기화</button>
+      </div>
+      <div class="legend">
+        <span><i style="background:#FF6D00;width:9px;height:9px"></i>5명 미만</span>
+        <span><i style="background:#2962FF;width:13px;height:13px"></i>5~9명</span>
+        <span><i style="background:#D81B60;width:16px;height:16px"></i>10명 이상</span>
+      </div>
+    </div>
+    <div id="status">지도 로딩 중…</div>
+    <div id="list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<div id="view-list" class="view">
+  <div class="list-toolbar">
+    <input id="lSearch" placeholder="검색 (대리점·지점·주소·역)">
+    <span class="note" id="lNote"></span>
+  </div>
+  <div class="table-wrap">
+    <table class="agency">
+      <thead>
+        <tr>
+          <th>#</th><th>대리점</th><th>본부</th><th>지점</th><th>주소</th><th>연락처</th>
+          <th>위촉설계사</th><th>개시일</th><th>가까운 역</th><th>직선거리</th>
+        </tr>
+      </thead>
+      <tbody id="lBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+/* ===== 데이터 ===== */
+const DEFAULT_AGENCIES = __DATA__;
+function loadAgencies(){
+  try { const o = JSON.parse(localStorage.getItem('agencies_data_v1') || 'null'); if (Array.isArray(o) && o.length) return o; } catch(e){}
+  return DEFAULT_AGENCIES;
+}
+let AGENCIES = loadAgencies();
+
+/* ===== 목록 업데이트 (엑셀 업로드) ===== */
+const ADDR_FIXES = [['난계29가길','난계로29가길'],['오패산77길','오패산로77길'],['강남대로 84 길','강남대로84길']];
+function normalizeAddr(a){
+  if (!a) return '';
+  a = String(a).trim().replace(/^\(\s*\d{3}-\d{2}\s*\)\s*/, '').replace(/\s+/g, ' ').trim();
+  ADDR_FIXES.forEach(function(f){ a = a.split(f[0]).join(f[1]); });
+  return a;
+}
+function ensureXLSX(cb){
+  if (window.XLSX) return cb();
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload = cb; s.onerror = function(){ alert('엑셀 라이브러리 로드 실패 — 인터넷 연결이 필요합니다.'); };
+  document.head.appendChild(s);
+}
+function parseWorkbook(wb){
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
+  let hi = rows.findIndex(function(r){ return r.indexOf('주소') >= 0; });
+  if (hi < 0) hi = 0;
+  const H = rows[hi].map(function(x){ return String(x).trim(); });
+  const c = { agency:H.indexOf('대리점명'), hq:H.indexOf('본부명'), branch:H.indexOf('지점명'), start:H.indexOf('개시일자'), fp:H.indexOf('위촉설계사'), tel:H.indexOf('연락처'), addr:H.indexOf('주소') };
+  if (c.addr < 0) return [];
+  const out = [];
+  for (let i = hi+1; i < rows.length; i++){
+    const r = rows[i]; if (!r) continue;
+    const addr = normalizeAddr(r[c.addr]);
+    if (!addr) continue;
+    out.push({ agency:String(r[c.agency]||'').trim(), hq:String(r[c.hq]||'').trim(), branch:String(r[c.branch]||'').trim(),
+               start:String(r[c.start]||'').slice(0,10), fp:Number(r[c.fp])||0, tel:String(r[c.tel]||'').trim(), addr:addr });
+  }
+  return out;
+}
+function handleListFile(file){
+  ensureXLSX(function(){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+        const data = parseWorkbook(wb);
+        if (!data.length){ alert('주소가 있는 데이터를 찾지 못했습니다. 엑셀 형식(대리점명·본부명·지점명·위촉설계사·연락처·주소)을 확인해주세요.'); return; }
+        if (confirm('업데이트된 목록 ' + data.length + '곳을 반영할까요? (현재 ' + AGENCIES.length + '곳) — 반영 후 새로고침됩니다.')){
+          localStorage.setItem('agencies_data_v1', JSON.stringify(data));
+          location.reload();
+        }
+      } catch(err){ alert('엑셀을 읽는 중 오류가 발생했습니다: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+/* 지하철 역사 좌표: [{station, line, exit:null, lat, lng}, ...] */
+const SUBWAY_EXITS = __EXITS__;
+
+/* ===== API 키 ===== */
+let NAVER_KEY = "__KEY__";
+const KEY_PLACEHOLDER = "__" + "KEY__";
+const AUTH_PARAMS = ['ncpClientId', 'ncpKeyId'];
+
+function loadMapsScript(key, param){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = "https://oapi.map.naver.com/openapi/v3/maps.js?" + param + "=" + key + "&submodules=geocoder";
+    s.onload = resolve; s.onerror = () => reject(new Error('script load error'));
+    document.head.appendChild(s);
+  });
+}
+window.navermap_authFailure = function(){
+  const idx = parseInt(localStorage.getItem('auth_param_idx') || '0', 10);
+  if (idx + 1 < AUTH_PARAMS.length){ localStorage.setItem('auth_param_idx', String(idx + 1)); location.reload(); return; }
+  localStorage.removeItem('auth_param_idx');
+  document.getElementById('app').innerHTML =
+    '<div class="keybox"><h2 style="color:#c00">인증 실패</h2>' +
+    '<p style="color:#666;font-size:13px">구·신규 파라미터를 모두 시도했지만 실패했습니다.<br>' +
+    '· <b>Web 서비스 URL</b>에 접속 주소(예: <code>http://localhost:5500</code>) 등록 여부<br>' +
+    '· file://로 열지 않았는지 → 로컬 서버로 여세요<br>· 콘솔 Web Dynamic Map·Geocoding 이용 신청 여부<br>· 키 정확한지</p>' +
+    '<button id="reKeyBtn">API 키 다시 입력</button></div>';
+  const b = document.getElementById('reKeyBtn');
+  if (b) b.addEventListener('click', () => showKeyForm('', localStorage.getItem('naver_key') || ''));
+};
+
+function setStatus(msg, done){ const el = document.getElementById('status'); if (!el) return; el.textContent = msg; el.className = done ? 'done' : ''; }
+
+/* ===== 상태 ===== */
+let map, infoWindow, geocodeCache = {};
+const CACHE_KEY = 'agency_geocode_v1';
+let markers = [];                 // {data, marker, lat, lng, fail, nearest}
+let activeFilter = {};            // 검색하기 클릭 시점의 조건
+
+function init(){
+  try { geocodeCache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch(e){ geocodeCache = {}; }
+  map = new naver.maps.Map('map', { center: new naver.maps.LatLng(37.5828, 127.0107), zoom: 12 });
+  infoWindow = new naver.maps.InfoWindow({ content: '', borderColor: '#03c75a', borderWidth: 2, anchorSize: new naver.maps.Size(10,10) });
+  window.__closeInfo = function(){ if (infoWindow) infoWindow.close(); };
+  document.getElementById('total').textContent = AGENCIES.length;
+  buildFilters();
+  bindFilters();
+  bindNav();
+  renderList();
+  setStatus("geocoder 준비 중…", false);
+  waitForGeocoder(8000).then(function(ok){
+    if (!ok){ setStatus("geocoder 서브모듈 로드 실패. 콘솔에서 Geocoding 이용 신청을 확인하세요.", false); return; }
+    geocodeAll();
+  });
+}
+function waitForGeocoder(timeoutMs){
+  return new Promise(function(resolve){
+    var start = Date.now();
+    (function check(){
+      if (window.naver && naver.maps && naver.maps.Service && naver.maps.Service.geocode){ resolve(true); return; }
+      if (Date.now() - start > timeoutMs){ resolve(false); return; }
+      setTimeout(check, 100);
+    })();
+  });
+}
+
+/* ===== 위촉설계사수 구간 & 색상 ===== */
+function fpBucket(fp){ fp = fp || 0; return fp >= 10 ? 'gte10' : (fp >= 5 ? '5to9' : 'lt5'); }
+function fpColor(fp){ const b = fpBucket(fp); return b === 'gte10' ? '#D81B60' : (b === '5to9' ? '#2962FF' : '#FF6D00'); }
+function fpSize(fp){ const b = fpBucket(fp); return b === 'gte10' ? 30 : (b === '5to9' ? 25 : 20); }
+function pinSVG(color, w, h){
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg">' +
+    '<path d="M12 0 C5.9 0 1 4.9 1 11 C1 18.7 12 32 12 32 C12 32 23 18.7 23 11 C23 4.9 18.1 0 12 0 Z" fill="' + color + '" stroke="#ffffff" stroke-width="2"/>' +
+    '<circle cx="12" cy="11" r="4.6" fill="#ffffff"/></svg>';
+}
+function makeIcon(fp){
+  const h = fpSize(fp), w = Math.round(h * 24 / 32);
+  return { content: pinSVG(fpColor(fp), w, h), anchor: new naver.maps.Point(Math.round(w/2), h) };
+}
+
+/* ===== 드롭다운 채우기 ===== */
+function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko')); }
+function fillSelect(id, vals){ const s = document.getElementById(id); while (s.options.length > 1) s.remove(1); vals.forEach(v => s.add(new Option(v, v))); }
+function buildFilters(){
+  fillSelect('fAgency', uniq(AGENCIES.map(a => a.agency)));
+  fillSelect('fHq', uniq(AGENCIES.map(a => a.hq)));
+  fillSelect('fBranch', uniq(AGENCIES.map(a => a.branch)));
+}
+function buildStationFilters(){
+  fillSelect('fLine', uniq(markers.filter(m => m.nearest).map(m => m.nearest.line)));
+  fillSelect('fStation', uniq(markers.filter(m => m.nearest).map(m => m.nearest.station)));
+}
+
+function bindFilters(){
+  document.getElementById('btnSearch').addEventListener('click', applySearch);
+  document.getElementById('btnReset').addEventListener('click', resetSearch);
+  document.getElementById('clearCache').addEventListener('click', () => { localStorage.removeItem(CACHE_KEY); location.reload(); });
+  document.getElementById('changeKey').addEventListener('click', () => showKeyForm('', localStorage.getItem('naver_key') || ''));
+  document.getElementById('lSearch').addEventListener('input', renderList);
+  document.getElementById('btnUpdateList').addEventListener('click', function(){ document.getElementById('xlsxInput').click(); });
+  document.getElementById('xlsxInput').addEventListener('change', function(e){ if (e.target.files && e.target.files[0]) handleListFile(e.target.files[0]); e.target.value=''; });
+}
+function val(id){ return document.getElementById(id).value; }
+function applySearch(){
+  activeFilter = { agency: val('fAgency'), hq: val('fHq'), branch: val('fBranch'), fp: val('fFp'), line: val('fLine'), station: val('fStation') };
+  render();
+  fitVisible();
+}
+function resetSearch(){
+  ['fAgency','fHq','fBranch','fFp','fLine','fStation'].forEach(id => document.getElementById(id).value = '');
+  activeFilter = {};
+  render();
+  fitToShown();
+}
+
+/* ===== 글로벌 메뉴 ===== */
+function bindNav(){
+  document.getElementById('navMap').addEventListener('click', () => switchView('map'));
+  document.getElementById('navList').addEventListener('click', () => switchView('list'));
+}
+function switchView(name){
+  const isMap = name === 'map';
+  document.getElementById('app').style.display = isMap ? 'flex' : 'none';
+  document.getElementById('view-list').style.display = isMap ? 'none' : 'flex';
+  document.getElementById('navMap').classList.toggle('active', isMap);
+  document.getElementById('navList').classList.toggle('active', !isMap);
+  if (isMap && map) naver.maps.Event.trigger(map, 'resize');
+  if (!isMap) renderList();
+}
+
+/* ===== 지오코딩 ===== */
+async function geocodeAll(){
+  let done = 0, fromApi = 0;
+  const queue = AGENCIES.slice();
+  const CONCURRENCY = 5;
+  async function worker(){
+    while (queue.length){
+      const a = queue.shift();
+      let pos = geocodeCache[a.addr];
+      if (!pos){ pos = await geocodeOne(a.addr); if (pos){ geocodeCache[a.addr] = pos; fromApi++; } }
+      addMarker(a, pos);
+      done++;
+      const failSoFar = markers.filter(m => m.fail).length;
+      setStatus("지오코딩 " + done + "/" + AGENCIES.length + " (신규 " + fromApi + ", 실패 " + failSoFar + ")…", false);
+    }
+  }
+  const workers = [];
+  for (let i = 0; i < CONCURRENCY; i++) workers.push(worker());
+  await Promise.all(workers);
+  localStorage.setItem(CACHE_KEY, JSON.stringify(geocodeCache));
+  const failN = markers.filter(m => m.fail).length;
+  setStatus("완료 · " + (markers.length-failN) + "개 표시, 실패 " + failN + "개" + (failN?" (주소 확인 필요)":""), true);
+  buildStationFilters();
+  fitToShown();
+  render();
+  showFailures();
+  renderList();
+}
+function geocodeOne(addr){
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = (v) => { if (!settled){ settled = true; resolve(v); } };
+    const timer = setTimeout(() => finish(null), 10000);
+    try {
+      naver.maps.Service.geocode({ query: addr }, (st, res) => {
+        clearTimeout(timer);
+        if (st !== naver.maps.Service.Status.OK || !res || !res.v2 || !res.v2.addresses || !res.v2.addresses.length){ finish(null); return; }
+        const r = res.v2.addresses[0];
+        finish({ lat: parseFloat(r.y), lng: parseFloat(r.x) });
+      });
+    } catch(e){ clearTimeout(timer); finish(null); }
+  });
+}
+function addMarker(a, pos){
+  if (!pos){ markers.push({ data:a, marker:null, fail:true, nearest:null }); return; }
+  const marker = new naver.maps.Marker({ position: new naver.maps.LatLng(pos.lat, pos.lng), map: map, title: a.branch, icon: makeIcon(a.fp), zIndex: (a.fp||0) });
+  const m = { data:a, marker, lat:pos.lat, lng:pos.lng, fail:false, nearest: nearestStation(pos.lat, pos.lng) };
+  naver.maps.Event.addListener(marker, 'click', () => openInfo(m));
+  markers.push(m);
+}
+function openInfo(m){
+  const a = m.data;
+  const tel = a.tel ? '<div class="tel">전화 <a href="tel:' + a.tel + '">' + a.tel + '</a></div>' : '';
+  let stn = '';
+  if (m.nearest) stn = '<div style="margin-top:4px">가까운 역: <b>' + m.nearest.station + (m.nearest.line?(' '+m.nearest.line):'') + '</b> (약 ' + m.nearest.dist + 'm)</div>';
+  infoWindow.setContent(
+    '<div class="iw"><span class="iw-close" onclick="__closeInfo()">×</span><b>' + a.branch + '</b><br>' +
+    '<span style="color:#03c75a">' + a.agency + '</span> · ' + (a.hq||'') + '<br>' + a.addr + '<br>' + tel + stn +
+    '<div style="color:#999;font-size:11px;margin-top:4px">위촉설계사 ' + (a.fp||0) + '명 · 개시 ' + a.start + '</div></div>');
+  infoWindow.open(map, m.marker);
+  map.panTo(m.marker.getPosition());
+}
+
+/* ===== 지도 사이드바 렌더 (activeFilter 적용) ===== */
+function matchFilter(m){
+  const f = activeFilter || {};
+  const a = m.data;
+  if (f.agency && a.agency !== f.agency) return false;
+  if (f.hq && a.hq !== f.hq) return false;
+  if (f.branch && a.branch !== f.branch) return false;
+  if (f.fp && fpBucket(a.fp) !== f.fp) return false;
+  if (f.line && !(m.nearest && m.nearest.line === f.line)) return false;
+  if (f.station && !(m.nearest && m.nearest.station === f.station)) return false;
+  return true;
+}
+function render(){
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  let shown = 0;
+  markers.forEach(m => {
+    const a = m.data;
+    const ok = matchFilter(m);
+    if (m.marker) m.marker.setMap(ok ? map : null);
+    if (!ok) return;
+    shown++;
+    const stn = m.nearest ? ('가까운 역: ' + m.nearest.station + (m.nearest.line?(' '+m.nearest.line):'') + ' · 약 ' + m.nearest.dist + 'm') : '';
+    const div = document.createElement('div');
+    div.className = 'item' + (m.fail?' fail':'');
+    div.innerHTML = '<div class="name"><span class="dot" style="background:' + fpColor(a.fp) + '"></span>' + a.branch + '</div>' +
+      '<div class="meta">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명 · ' + (a.tel||'연락처 없음') + '</div>' +
+      '<div class="addr">' + a.addr + (m.fail?' (주소변환 실패)':'') + '</div>' +
+      (stn ? '<div class="stninfo">' + stn + '</div>' : '');
+    if (!m.fail) div.addEventListener('click', () => openInfo(m));
+    list.appendChild(div);
+  });
+  document.getElementById('shown').textContent = shown;
+}
+function showFailures(){
+  const old = document.getElementById('failBox'); if (old) old.remove();
+  const fails = markers.filter(m => m.fail);
+  if (!fails.length) return;
+  const div = document.createElement('div');
+  div.id = 'failBox';
+  div.style.cssText = 'padding:10px 12px;background:#fdecea;border-bottom:1px solid #f5c6cb;font-size:12px;color:#a33;line-height:1.5';
+  div.innerHTML = '<b>지오코딩 실패 ' + fails.length + '건</b><br>' + fails.map((m,i)=>(i+1)+'. '+m.data.branch).join('<br>');
+  const list = document.getElementById('list');
+  list.parentNode.insertBefore(div, list);
+}
+function fitToShown(){
+  const pts = markers.filter(m => !m.fail);
+  if (!pts.length) return;
+  const b = new naver.maps.LatLngBounds(pts[0].marker.getPosition(), pts[0].marker.getPosition());
+  pts.forEach(m => b.extend(m.marker.getPosition()));
+  map.fitBounds(b);
+}
+function fitVisible(){
+  const pts = markers.filter(m => !m.fail && m.marker && m.marker.getMap());
+  if (!pts.length) return;
+  const b = new naver.maps.LatLngBounds(pts[0].marker.getPosition(), pts[0].marker.getPosition());
+  pts.forEach(m => b.extend(m.marker.getPosition()));
+  map.fitBounds(b);
+}
+
+/* ===== 최근접 역 (haversine 직선거리) ===== */
+function haversine(la1, lo1, la2, lo2){
+  const R = 6371000, toRad = d => d*Math.PI/180;
+  const dLa = toRad(la2-la1), dLo = toRad(lo2-lo1);
+  const x = Math.sin(dLa/2)**2 + Math.cos(toRad(la1))*Math.cos(toRad(la2))*Math.sin(dLo/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+function nearestStation(lat, lng){
+  if (!SUBWAY_EXITS || !SUBWAY_EXITS.length) return null;
+  let best = null, bestD = Infinity;
+  for (const e of SUBWAY_EXITS){ const d = haversine(lat, lng, e.lat, e.lng); if (d < bestD){ bestD = d; best = e; } }
+  if (!best) return null;
+  return { station: best.station, line: best.line || '', dist: Math.round(bestD) };
+}
+
+/* ===== 목록 보기 테이블 ===== */
+function renderList(){
+  const body = document.getElementById('lBody');
+  if (!body) return;
+  const q = (document.getElementById('lSearch').value || '').trim().toLowerCase();
+  const haveStn = SUBWAY_EXITS && SUBWAY_EXITS.length;
+  const rows = markers.length ? markers.map(m => ({ a:m.data, fail:m.fail, near:m.nearest }))
+                              : AGENCIES.map(a => ({ a:a, fail:false, near:null }));
+  let n = 0, html = '';
+  rows.forEach(r => {
+    const a = r.a;
+    if (q && !(a.branch+a.agency+(a.hq||'')+a.addr+(r.near?r.near.station:'')).toLowerCase().includes(q)) return;
+    n++;
+    let stn, dist;
+    if (r.fail){ stn = '<span class="muted">주소변환 실패</span>'; dist = '—'; }
+    else if (!haveStn){ stn = '<span class="muted">역 데이터 추가 필요</span>'; dist = '—'; }
+    else if (r.near){ stn = '<span class="stn">' + r.near.station + (r.near.line?(' ('+r.near.line+')'):'') + '</span>'; dist = '<span class="dist">약 ' + r.near.dist + 'm</span>'; }
+    else { stn = '<span class="muted">계산 중</span>'; dist = '—'; }
+    html += '<tr><td>' + n + '</td><td>' + a.agency + '</td><td>' + (a.hq||'') + '</td><td>' + a.branch + '</td>' +
+            '<td class="addr">' + a.addr + '</td><td>' + (a.tel||'-') + '</td>' +
+            '<td>' + (a.fp||0) + '</td><td>' + (a.start||'') + '</td>' +
+            '<td>' + stn + '</td><td>' + dist + '</td></tr>';
+  });
+  body.innerHTML = html;
+  const note = document.getElementById('lNote');
+  if (note) note.textContent = n + '개' + (haveStn ? ' · 직선거리는 역사 중심 기준' : '');
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ===== 부트스트랩 ===== */
+(function boot(){
+  const saved = localStorage.getItem('naver_key');
+  if (NAVER_KEY && NAVER_KEY !== KEY_PLACEHOLDER) localStorage.setItem('naver_key', NAVER_KEY);
+  const key = (NAVER_KEY && NAVER_KEY !== KEY_PLACEHOLDER) ? NAVER_KEY : saved;
+  if (!key){ showKeyForm(); return; }
+  let idx = parseInt(localStorage.getItem('auth_param_idx') || '0', 10);
+  if (idx >= AUTH_PARAMS.length){ idx = 0; localStorage.setItem('auth_param_idx', '0'); }
+  loadMapsScript(key, AUTH_PARAMS[idx]).then(init).catch(function(){ showKeyForm('스크립트 로드 실패. 키를 다시 확인하세요.', key); });
+})();
+
+function showKeyForm(err, prefill){
+  var val = (prefill || '').replace(/"/g, '&quot;');
+  document.getElementById('app').innerHTML =
+    '<div class="keybox"><h2>Naver Maps API 키 설정</h2>' +
+    '<p style="color:#666;font-size:13px">NCP 콘솔에서 발급한 <b>Maps Client ID</b>를 입력하세요. 구·신규 콘솔 키 모두 자동 인식합니다.</p>' +
+    (err ? '<p style="color:#c00">' + err + '</p>' : '') +
+    '<input id="keyInput" placeholder="예: abcd1234efgh" value="' + val + '">' +
+    '<button id="saveKeyBtn">저장하고 시작</button> ' +
+    (prefill ? '<button id="cancelKeyBtn" style="background:#999">취소</button>' : '') + '</div>';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('saveKeyBtn').addEventListener('click', function(){
+    var k = document.getElementById('keyInput').value.trim();
+    localStorage.setItem('auth_param_idx', '0');
+    if (k) localStorage.setItem('naver_key', k); else localStorage.removeItem('naver_key');
+    location.reload();
+  });
+  var cancel = document.getElementById('cancelKeyBtn');
+  if (cancel) cancel.addEventListener('click', function(){ location.reload(); });
+}
+</script>
+</body>
+</html>
