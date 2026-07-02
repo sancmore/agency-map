@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>담당 대리점 지도</title>
 <meta name="theme-color" content="#02b350">
 <meta name="mobile-web-app-capable" content="yes">
@@ -14,8 +14,8 @@
 <style>
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; font-family: 'Malgun Gothic', -apple-system, sans-serif; }
-  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-  #topnav { height: 46px; background: #02b350; color: #fff; display: flex; align-items: center; padding: 0 14px; gap: 6px; flex-shrink: 0; }
+  body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+  #topnav { min-height: 46px; background: #02b350; color: #fff; display: flex; align-items: center; padding: env(safe-area-inset-top) 14px 0; gap: 6px; flex-shrink: 0; }
   #topnav .brand { font-weight: 700; font-size: 15px; margin-right: 14px; }
   #topnav .navbtn { background: transparent; color: #d6ffe6; border: none; padding: 8px 14px; font-size: 14px; cursor: pointer; border-radius: 6px 6px 0 0; }
   #topnav .navbtn.active { background: #fff; color: #02b350; font-weight: 700; }
@@ -81,7 +81,7 @@
   .keybox button { padding: 10px 18px; background: #03c75a; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
   /* ===== 모바일 반응형 ===== */
   @media (max-width: 600px){
-    #topnav { height: auto; min-height: 46px; flex-wrap: wrap; padding: 6px 10px; gap: 4px 8px; }
+    #topnav { height: auto; min-height: 46px; flex-wrap: wrap; padding: calc(6px + env(safe-area-inset-top)) 10px 6px; gap: 4px 8px; }
     #topnav .brand { font-size: 14px; margin-right: 6px; }
     #topnav .navbtn { padding: 7px 12px; }
     #topnav .spacer { display: none; }
@@ -117,6 +117,7 @@
   <button class="navbtn active" id="navMap">지도보기</button>
   <button class="navbtn" id="navList">목록보기</button>
   <button class="navbtn" id="btnPanel" title="검색/필터 패널 보이기·숨기기">▤ 필터 숨기기</button>
+  <button class="navbtn" id="btnParking" title="주차장 표시/숨기기">🅿 주차장</button>
   <span class="spacer"></span>
   <span class="count2">총 <span id="total">0</span>개 · Naver Maps · <span id="shown">0</span>개 표시 · <span class="toolbtn-top" id="changeKey">API 키 변경</span> · <span class="toolbtn-top" id="clearCache">캐시 초기화</span></span>
 </div>
@@ -238,6 +239,7 @@ function handleListFile(file){
 }
 /* 지하철 역사 좌표: [{station, line, exit:null, lat, lng}, ...] */
 const SUBWAY_EXITS = __EXITS__;
+const PARKING = __PARKING__;
 
 /* ===== API 키 ===== */
 let NAVER_KEY = "__KEY__";
@@ -368,6 +370,7 @@ function resetSearch(){
 function bindNav(){
   document.getElementById('navMap').addEventListener('click', () => switchView('map'));
   document.getElementById('navList').addEventListener('click', () => switchView('list'));
+  document.getElementById('btnParking').addEventListener('click', toggleParking);
 }
 function switchView(name){
   const isMap = name === 'map';
@@ -376,6 +379,7 @@ function switchView(name){
   document.getElementById('navMap').classList.toggle('active', isMap);
   document.getElementById('navList').classList.toggle('active', !isMap);
   var bp = document.getElementById('btnPanel'); if (bp) bp.style.display = isMap ? '' : 'none';
+  var pk = document.getElementById('btnParking'); if (pk) pk.style.display = isMap ? '' : 'none';
   if (isMap && map) naver.maps.Event.trigger(map, 'resize');
   if (!isMap) renderList();
 }
@@ -431,6 +435,73 @@ function buildGroups(){
     g.marker = marker;
   });
 }
+
+/* ===== 공통 주소 계산 ===== */
+function commonAddr(addrs){
+  if (!addrs.length) return '';
+  var p = addrs[0];
+  for (var i = 1; i < addrs.length; i++){
+    var s = addrs[i], j = 0;
+    while (j < p.length && j < s.length && p[j] === s[j]) j++;
+    p = p.slice(0, j); if (!p) break;
+  }
+  var ci = Math.max(p.lastIndexOf(' '), p.lastIndexOf(','));
+  if (ci > 3) p = p.slice(0, ci);
+  return p.replace(/[,\s]+$/, '');
+}
+
+/* ===== 주차장 레이어 ===== */
+let parkingMarkers = [], parkingOn = false, parkingIdle = null;
+function parkingIcon(){
+  return { content: '<div style="width:20px;height:20px;background:#1565c0;border:2px solid #fff;border-radius:5px;color:#fff;font-weight:800;font-size:12px;line-height:16px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.45)">P</div>', anchor: new naver.maps.Point(10, 10) };
+}
+function toggleParking(){
+  parkingOn = !parkingOn;
+  var b = document.getElementById('btnParking'); if (b) b.classList.toggle('active', parkingOn);
+  if (parkingOn){ parkingIdle = naver.maps.Event.addListener(map, 'idle', renderParking); renderParking(); }
+  else { if (parkingIdle){ naver.maps.Event.removeListener(parkingIdle); parkingIdle = null; } clearParking(); }
+}
+function clearParking(){ parkingMarkers.forEach(function(m){ m.setMap(null); }); parkingMarkers = []; }
+function renderParking(){
+  if (!parkingOn || !map) return;
+  clearParking();
+  var bd = map.getBounds(), n = 0;
+  for (var i = 0; i < PARKING.length && n < 500; i++){
+    var p = PARKING[i], pos = new naver.maps.LatLng(p.lat, p.lng);
+    if (!bd.hasLatLng(pos)) continue;
+    var mk = new naver.maps.Marker({ position: pos, map: map, icon: parkingIcon(), zIndex: 5, title: p.name });
+    naver.maps.Event.addListener(mk, 'click', (function(pp, mkr){ return function(){ openParking(pp, mkr); }; })(p, mk));
+    parkingMarkers.push(mk); n++;
+  }
+}
+function won(v){ v = String(v||'').replace(/[^0-9]/g, ''); return v && v !== '0' ? Number(v).toLocaleString() + '원' : ''; }
+function openParking(p, mk){
+  function row(l, v){ return v ? ('<div style="font-size:12px;margin-top:2px"><b style="color:#555">' + l + '</b> ' + v + '</div>') : ''; }
+  var op = [];
+  if (p.wkS) op.push('평일 ' + p.wkS + '~' + p.wkE);
+  if (p.satS) op.push('토 ' + p.satS + '~' + p.satE);
+  if (p.holS) op.push('공휴일 ' + p.holS + '~' + p.holE);
+  var fee;
+  if ((p.feeInfo||'').indexOf('무료') >= 0) fee = '무료';
+  else {
+    var parts = [];
+    if (won(p.baseFee)) parts.push('기본 ' + (p.baseTime||'') + '분 ' + won(p.baseFee));
+    if (won(p.addFee)) parts.push('추가 ' + (p.addUnit||'') + '분 ' + won(p.addFee));
+    if (won(p.dayFee)) parts.push('1일권 ' + won(p.dayFee));
+    fee = parts.join(' · ') || (p.feeInfo || '');
+  }
+  var html = '<div class="iw" style="max-width:255px"><span class="iw-close" onclick="__closeInfo()">×</span>' +
+    '<b>P ' + p.name + '</b>' +
+    '<div style="font-size:12px;color:#1565c0;margin:2px 0">' + (p.kind||'') + (p.type?(' · ' + p.type + '주차장'):'') + '</div>' +
+    row('주차면', p.slots ? (p.slots + '면') : '') +
+    row('운영', op.join(' / ')) +
+    row('요금', fee) +
+    row('전화', p.tel) +
+    '<div style="color:#999;font-size:11px;margin-top:4px">' + (p.addr||'') + '</div>' +
+    '</div>';
+  infoWindow.setContent(html);
+  infoWindow.open(map, mk);
+}
 function geocodeOne(addr){
   return new Promise(resolve => {
     let settled = false;
@@ -456,16 +527,19 @@ function openGroupInfo(group){
   var html = '<div class="iw"><span class="iw-close" onclick="__closeInfo()">×</span>';
   if (members.length > 1){
     var a0 = members[0].data, near0 = members[0].nearest;
+    var common = commonAddr(members.map(function(mm){ return mm.data.addr; }));
     html += '<b>이 위치 대리점 ' + members.length + '곳</b>';
-    html += '<div style="max-height:210px;overflow:auto;margin-top:6px">';
+    html += '<div style="max-height:230px;overflow:auto;margin-top:6px">';
     members.forEach(function(mm){ var a = mm.data;
+      var detail = a.addr.slice(common.length).replace(/^[,\s)]+/, '').trim();
       html += '<div style="padding:7px 0;border-top:1px solid #eee">' +
         '<div style="font-weight:700"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + fpColor(a.fp) + ';margin-right:5px"></span>' + a.branch + '</div>' +
-        '<div style="color:#03c75a;font-size:12px">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명' + (a.tel?(' · <a href="tel:'+a.tel+'" style="color:#03c75a;text-decoration:none">'+a.tel+'</a>'):'') + '</div>' +
+        '<div style="font-size:12px;color:#555">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명' + (a.tel?(' · <a href="tel:'+a.tel+'" style="color:#03c75a;text-decoration:none">'+a.tel+'</a>'):'') + '</div>' +
+        (detail ? '<div style="font-size:12px;color:#888">상세: ' + detail + '</div>' : '') +
         '</div>';
     });
     html += '</div>';
-    html += '<div style="color:#999;font-size:11px;margin-top:6px">' + a0.addr + (near0?(' · 가까운 역 ' + near0.station + ' 약 ' + near0.dist + 'm'):'') + '</div>';
+    html += '<div style="color:#666;font-size:11.5px;margin-top:8px;border-top:2px solid #e3e3e3;padding-top:6px">주소: ' + (common || a0.addr) + (near0?('<br>가까운 역: ' + near0.station + (near0.line?(' '+near0.line):'') + ' 약 ' + near0.dist + 'm'):'') + '</div>';
   } else {
     var a = members[0].data, near = members[0].nearest;
     var tel = a.tel ? '<div class="tel">전화 <a href="tel:' + a.tel + '">' + a.tel + '</a></div>' : '';
