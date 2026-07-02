@@ -271,7 +271,8 @@ function setStatus(msg, done){ const el = document.getElementById('status'); if 
 /* ===== 상태 ===== */
 let map, infoWindow, geocodeCache = {};
 const CACHE_KEY = 'agency_geocode_v1';
-let markers = [];                 // {data, marker, lat, lng, fail, nearest}
+let markers = [];                 // 개별 대리점 레코드 {data, lat, lng, fail, nearest, group}
+let groups = [];                  // 좌표 그룹 {lat, lng, members:[record], marker, bestFp}
 let activeFilter = {};            // 검색하기 클릭 시점의 조건
 
 function init(){
@@ -310,9 +311,14 @@ function pinSVG(color, w, h){
     '<path d="M12 0 C5.9 0 1 4.9 1 11 C1 18.7 12 32 12 32 C12 32 23 18.7 23 11 C23 4.9 18.1 0 12 0 Z" fill="' + color + '" stroke="#ffffff" stroke-width="2"/>' +
     '<circle cx="12" cy="11" r="4.6" fill="#ffffff"/></svg>';
 }
-function makeIcon(fp){
+function makeIcon(fp, count){
   const h = fpSize(fp), w = Math.round(h * 24 / 32);
-  return { content: pinSVG(fpColor(fp), w, h), anchor: new naver.maps.Point(Math.round(w/2), h) };
+  var badge = '';
+  if (count && count > 1){
+    badge = '<div style="position:absolute;top:-6px;right:-9px;min-width:17px;height:17px;padding:0 3px;background:#111;color:#fff;border:1.5px solid #fff;border-radius:9px;font-size:10px;line-height:14px;text-align:center;font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.4)">' + count + '</div>';
+  }
+  var content = '<div style="position:relative;width:' + w + 'px;height:' + h + 'px">' + pinSVG(fpColor(fp), w, h) + badge + '</div>';
+  return { content: content, anchor: new naver.maps.Point(Math.round(w/2), h) };
 }
 
 /* ===== 드롭다운 채우기 ===== */
@@ -396,11 +402,34 @@ async function geocodeAll(){
   localStorage.setItem(CACHE_KEY, JSON.stringify(geocodeCache));
   const failN = markers.filter(m => m.fail).length;
   setStatus("완료 · " + (markers.length-failN) + "개 표시, 실패 " + failN + "개" + (failN?" (주소 확인 필요)":""), true);
+  buildGroups();
   buildStationFilters();
   fitToShown();
   render();
   showFailures();
   renderList();
+}
+
+/* ===== 좌표 그룹핑 (같은 위치 = 마커 1개 + 배지) ===== */
+function coordKey(lat, lng){ return lat.toFixed(5) + ',' + lng.toFixed(5); }
+function buildGroups(){
+  groups.forEach(function(g){ if (g.marker) g.marker.setMap(null); });
+  groups = [];
+  var byKey = {};
+  markers.forEach(function(m){
+    if (m.fail){ m.group = null; return; }
+    var k = coordKey(m.lat, m.lng);
+    var g = byKey[k];
+    if (!g){ g = { lat:m.lat, lng:m.lng, members:[], marker:null }; byKey[k] = g; groups.push(g); }
+    g.members.push(m); m.group = g;
+  });
+  groups.forEach(function(g){
+    var bestFp = Math.max.apply(null, g.members.map(function(m){ return m.data.fp || 0; }));
+    g.bestFp = bestFp;
+    var marker = new naver.maps.Marker({ position: new naver.maps.LatLng(g.lat, g.lng), map: map, title: g.members[0].data.branch, icon: makeIcon(bestFp, g.members.length), zIndex: bestFp });
+    naver.maps.Event.addListener(marker, 'click', (function(gr){ return function(){ openGroupInfo(gr); }; })(g));
+    g.marker = marker;
+  });
 }
 function geocodeOne(addr){
   return new Promise(resolve => {
@@ -418,23 +447,36 @@ function geocodeOne(addr){
   });
 }
 function addMarker(a, pos){
-  if (!pos){ markers.push({ data:a, marker:null, fail:true, nearest:null }); return; }
-  const marker = new naver.maps.Marker({ position: new naver.maps.LatLng(pos.lat, pos.lng), map: map, title: a.branch, icon: makeIcon(a.fp), zIndex: (a.fp||0) });
-  const m = { data:a, marker, lat:pos.lat, lng:pos.lng, fail:false, nearest: nearestStation(pos.lat, pos.lng) };
-  naver.maps.Event.addListener(marker, 'click', () => openInfo(m));
-  markers.push(m);
+  if (!pos){ markers.push({ data:a, fail:true, nearest:null, group:null }); return; }
+  markers.push({ data:a, lat:pos.lat, lng:pos.lng, fail:false, nearest: nearestStation(pos.lat, pos.lng), group:null });
 }
-function openInfo(m){
-  const a = m.data;
-  const tel = a.tel ? '<div class="tel">전화 <a href="tel:' + a.tel + '">' + a.tel + '</a></div>' : '';
-  let stn = '';
-  if (m.nearest) stn = '<div style="margin-top:4px">가까운 역: <b>' + m.nearest.station + (m.nearest.line?(' '+m.nearest.line):'') + '</b> (약 ' + m.nearest.dist + 'm)</div>';
-  infoWindow.setContent(
-    '<div class="iw"><span class="iw-close" onclick="__closeInfo()">×</span><b>' + a.branch + '</b><br>' +
-    '<span style="color:#03c75a">' + a.agency + '</span> · ' + (a.hq||'') + '<br>' + a.addr + '<br>' + tel + stn +
-    '<div style="color:#999;font-size:11px;margin-top:4px">위촉설계사 ' + (a.fp||0) + '명 · 개시 ' + a.start + '</div></div>');
-  infoWindow.open(map, m.marker);
-  map.panTo(m.marker.getPosition());
+function openGroupInfo(group){
+  var members = group.members.filter(matchFilter);
+  if (!members.length) members = group.members;
+  var html = '<div class="iw"><span class="iw-close" onclick="__closeInfo()">×</span>';
+  if (members.length > 1){
+    var a0 = members[0].data, near0 = members[0].nearest;
+    html += '<b>이 위치 대리점 ' + members.length + '곳</b>';
+    html += '<div style="max-height:210px;overflow:auto;margin-top:6px">';
+    members.forEach(function(mm){ var a = mm.data;
+      html += '<div style="padding:7px 0;border-top:1px solid #eee">' +
+        '<div style="font-weight:700"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + fpColor(a.fp) + ';margin-right:5px"></span>' + a.branch + '</div>' +
+        '<div style="color:#03c75a;font-size:12px">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명' + (a.tel?(' · <a href="tel:'+a.tel+'" style="color:#03c75a;text-decoration:none">'+a.tel+'</a>'):'') + '</div>' +
+        '</div>';
+    });
+    html += '</div>';
+    html += '<div style="color:#999;font-size:11px;margin-top:6px">' + a0.addr + (near0?(' · 가까운 역 ' + near0.station + ' 약 ' + near0.dist + 'm'):'') + '</div>';
+  } else {
+    var a = members[0].data, near = members[0].nearest;
+    var tel = a.tel ? '<div class="tel">전화 <a href="tel:' + a.tel + '">' + a.tel + '</a></div>' : '';
+    var stn = near ? '<div style="margin-top:4px">가까운 역: <b>' + near.station + (near.line?(' '+near.line):'') + '</b> (약 ' + near.dist + 'm)</div>' : '';
+    html += '<b>' + a.branch + '</b><br><span style="color:#03c75a">' + a.agency + '</span> · ' + (a.hq||'') + '<br>' + a.addr + '<br>' + tel + stn +
+      '<div style="color:#999;font-size:11px;margin-top:4px">위촉설계사 ' + (a.fp||0) + '명 · 개시 ' + a.start + '</div>';
+  }
+  html += '</div>';
+  infoWindow.setContent(html);
+  infoWindow.open(map, group.marker);
+  map.panTo(group.marker.getPosition());
 }
 
 /* ===== 지도 사이드바 렌더 (activeFilter 적용) ===== */
@@ -453,11 +495,17 @@ function render(){
   const list = document.getElementById('list');
   list.innerHTML = '';
   let shown = 0;
+  groups.forEach(function(g){
+    var matched = g.members.filter(matchFilter);
+    if (!matched.length){ g.marker.setMap(null); return; }
+    g.marker.setMap(map);
+    var bestFp = Math.max.apply(null, matched.map(function(m){ return m.data.fp || 0; }));
+    g.marker.setIcon(makeIcon(bestFp, matched.length));
+    g.marker.setZIndex(bestFp);
+  });
   markers.forEach(m => {
     const a = m.data;
-    const ok = matchFilter(m);
-    if (m.marker) m.marker.setMap(ok ? map : null);
-    if (!ok) return;
+    if (!matchFilter(m)) return;
     shown++;
     const stn = m.nearest ? ('가까운 역: ' + m.nearest.station + (m.nearest.line?(' '+m.nearest.line):'') + ' · 약 ' + m.nearest.dist + 'm') : '';
     const div = document.createElement('div');
@@ -466,7 +514,7 @@ function render(){
       '<div class="meta">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명 · ' + (a.tel||'연락처 없음') + '</div>' +
       '<div class="addr">' + a.addr + (m.fail?' (주소변환 실패)':'') + '</div>' +
       (stn ? '<div class="stninfo">' + stn + '</div>' : '');
-    if (!m.fail) div.addEventListener('click', () => openInfo(m));
+    if (!m.fail && m.group) div.addEventListener('click', (function(gr){ return function(){ openGroupInfo(gr); }; })(m.group));
     list.appendChild(div);
   });
   document.getElementById('shown').textContent = shown;
@@ -483,17 +531,16 @@ function showFailures(){
   list.parentNode.insertBefore(div, list);
 }
 function fitToShown(){
-  const pts = markers.filter(m => !m.fail);
-  if (!pts.length) return;
-  const b = new naver.maps.LatLngBounds(pts[0].marker.getPosition(), pts[0].marker.getPosition());
-  pts.forEach(m => b.extend(m.marker.getPosition()));
+  if (!groups.length) return;
+  const b = new naver.maps.LatLngBounds(groups[0].marker.getPosition(), groups[0].marker.getPosition());
+  groups.forEach(function(g){ b.extend(g.marker.getPosition()); });
   map.fitBounds(b);
 }
 function fitVisible(){
-  const pts = markers.filter(m => !m.fail && m.marker && m.marker.getMap());
-  if (!pts.length) return;
-  const b = new naver.maps.LatLngBounds(pts[0].marker.getPosition(), pts[0].marker.getPosition());
-  pts.forEach(m => b.extend(m.marker.getPosition()));
+  const vis = groups.filter(function(g){ return g.marker && g.marker.getMap(); });
+  if (!vis.length) return;
+  const b = new naver.maps.LatLngBounds(vis[0].marker.getPosition(), vis[0].marker.getPosition());
+  vis.forEach(function(g){ b.extend(g.marker.getPosition()); });
   map.fitBounds(b);
 }
 
