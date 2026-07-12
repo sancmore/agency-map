@@ -118,6 +118,7 @@
   <button class="navbtn" id="navList">목록보기</button>
   <button class="navbtn" id="btnPanel" title="검색/필터 패널 보이기·숨기기">▤ 필터 숨기기</button>
   <button class="navbtn" id="btnParking" title="주차장 표시/숨기기">🅿 주차장</button>
+  <button class="navbtn" id="btnMyLoc" title="현재 내 위치 표시">📍 내 위치</button>
   <span class="spacer"></span>
   <span class="count2">총 <span id="total">0</span>개 · Naver Maps · <span id="shown">0</span>개 표시 · <span class="toolbtn-top" id="changeKey">API 키 변경</span> · <span class="toolbtn-top" id="clearCache">캐시 초기화</span></span>
 </div>
@@ -139,6 +140,11 @@
           <option value="lt5">5명 미만</option>
           <option value="5to9">5~9명</option>
           <option value="gte10">10명 이상</option>
+        </select></div>
+        <div><label>방문 여부</label><select id="fVisit">
+          <option value="">전체</option>
+          <option value="visited">방문</option>
+          <option value="notvisited">미방문</option>
         </select></div>
         <div><label>지하철 호선</label><select id="fLine"><option value="">전체</option></select></div>
         <div><label>역명</label><select id="fStation"><option value="">전체</option></select></div>
@@ -170,7 +176,7 @@
       <thead>
         <tr>
           <th>#</th><th>대리점</th><th>본부</th><th>지점</th><th>주소</th><th>연락처</th>
-          <th>위촉설계사</th><th>개시일</th><th>가까운 역</th><th>직선거리</th>
+          <th>위촉설계사</th><th>방문</th><th>개시일</th><th>가까운 역</th><th>직선거리</th>
         </tr>
       </thead>
       <tbody id="lBody"></tbody>
@@ -208,7 +214,7 @@ function parseWorkbook(wb){
   let hi = rows.findIndex(function(r){ return r.indexOf('주소') >= 0; });
   if (hi < 0) hi = 0;
   const H = rows[hi].map(function(x){ return String(x).trim(); });
-  const c = { agency:H.indexOf('대리점명'), hq:H.indexOf('본부명'), branch:H.indexOf('지점명'), start:H.indexOf('개시일자'), fp:H.indexOf('위촉설계사'), tel:H.indexOf('연락처'), addr:H.indexOf('주소') };
+  const c = { agency:H.indexOf('대리점명'), hq:H.indexOf('본부명'), branch:H.indexOf('지점명'), start:H.indexOf('개시일자'), fp:H.indexOf('위촉설계사'), tel:H.indexOf('연락처'), addr:H.indexOf('주소'), visits:H.indexOf('방문') };
   if (c.addr < 0) return [];
   const out = [];
   for (let i = hi+1; i < rows.length; i++){
@@ -216,7 +222,7 @@ function parseWorkbook(wb){
     const addr = normalizeAddr(r[c.addr]);
     if (!addr) continue;
     out.push({ agency:String(r[c.agency]||'').trim(), hq:String(r[c.hq]||'').trim(), branch:String(r[c.branch]||'').trim(),
-               start:String(r[c.start]||'').slice(0,10), fp:Number(r[c.fp])||0, tel:String(r[c.tel]||'').trim(), addr:addr });
+               start:String(r[c.start]||'').slice(0,10), fp:Number(r[c.fp])||0, tel:String(r[c.tel]||'').trim(), addr:addr, visits:(c.visits>=0?(Number(r[c.visits])||0):0) });
   }
   return out;
 }
@@ -355,12 +361,12 @@ function togglePanel(){ document.getElementById('app').classList.toggle('panel-c
 function updatePanelBtn(){ var c = document.getElementById('app').classList.contains('panel-collapsed'); var b = document.getElementById('btnPanel'); if (b) b.textContent = c ? '▤ 필터 보기' : '▤ 필터 숨기기'; }
 function val(id){ return document.getElementById(id).value; }
 function applySearch(){
-  activeFilter = { agency: val('fAgency'), hq: val('fHq'), branch: val('fBranch'), fp: val('fFp'), line: val('fLine'), station: val('fStation') };
+  activeFilter = { agency: val('fAgency'), hq: val('fHq'), branch: val('fBranch'), fp: val('fFp'), visit: val('fVisit'), line: val('fLine'), station: val('fStation') };
   render();
   fitVisible();
 }
 function resetSearch(){
-  ['fAgency','fHq','fBranch','fFp','fLine','fStation'].forEach(id => document.getElementById(id).value = '');
+  ['fAgency','fHq','fBranch','fFp','fVisit','fLine','fStation'].forEach(id => document.getElementById(id).value = '');
   activeFilter = {};
   render();
   fitToShown();
@@ -371,6 +377,7 @@ function bindNav(){
   document.getElementById('navMap').addEventListener('click', () => switchView('map'));
   document.getElementById('navList').addEventListener('click', () => switchView('list'));
   document.getElementById('btnParking').addEventListener('click', toggleParking);
+  document.getElementById('btnMyLoc').addEventListener('click', locateMe);
 }
 function switchView(name){
   const isMap = name === 'map';
@@ -380,6 +387,7 @@ function switchView(name){
   document.getElementById('navList').classList.toggle('active', !isMap);
   var bp = document.getElementById('btnPanel'); if (bp) bp.style.display = isMap ? '' : 'none';
   var pk = document.getElementById('btnParking'); if (pk) pk.style.display = isMap ? '' : 'none';
+  var ml = document.getElementById('btnMyLoc'); if (ml) ml.style.display = isMap ? '' : 'none';
   if (isMap && map) naver.maps.Event.trigger(map, 'resize');
   if (!isMap) renderList();
 }
@@ -502,6 +510,26 @@ function openParking(p, mk){
   infoWindow.setContent(html);
   infoWindow.open(map, mk);
 }
+
+/* ===== 내 위치 ===== */
+let myLocMarker = null;
+function myLocIcon(){
+  return { content: '<div style="position:relative;width:22px;height:22px"><div style="position:absolute;inset:0;border-radius:50%;background:rgba(26,115,232,.22)"></div><div style="position:absolute;left:5px;top:5px;width:12px;height:12px;border-radius:50%;background:#1a73e8;border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.4)"></div></div>', anchor: new naver.maps.Point(11, 11) };
+}
+function locateMe(){
+  if (!navigator.geolocation){ alert('이 브라우저는 위치 기능을 지원하지 않습니다.'); return; }
+  setStatus('내 위치 확인 중…', false);
+  navigator.geolocation.getCurrentPosition(function(pos){
+    var ll = new naver.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+    if (!myLocMarker){ myLocMarker = new naver.maps.Marker({ position: ll, map: map, icon: myLocIcon(), zIndex: 1000, title: '내 위치' }); }
+    else { myLocMarker.setPosition(ll); myLocMarker.setMap(map); }
+    map.setCenter(ll); map.setZoom(Math.max(map.getZoom(), 15));
+    setStatus('내 위치를 표시했습니다.', true);
+  }, function(err){
+    alert('위치를 가져오지 못했습니다: ' + (err.code===1?'위치 권한이 거부되었습니다':err.message) + '\n(HTTPS 접속과 위치 권한 허용이 필요합니다)');
+    setStatus('내 위치 확인 실패', false);
+  }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
+}
 function geocodeOne(addr){
   return new Promise(resolve => {
     let settled = false;
@@ -534,7 +562,7 @@ function openGroupInfo(group){
       var detail = a.addr.slice(common.length).replace(/^[,\s)]+/, '').trim();
       html += '<div style="padding:7px 0;border-top:1px solid #eee">' +
         '<div style="font-weight:700"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + fpColor(a.fp) + ';margin-right:5px"></span>' + a.branch + '</div>' +
-        '<div style="font-size:12px;color:#555">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명' + (a.tel?(' · <a href="tel:'+a.tel+'" style="color:#03c75a;text-decoration:none">'+a.tel+'</a>'):'') + '</div>' +
+        '<div style="font-size:12px;color:#555">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명 · 방문 ' + (a.visits||0) + '회' + (a.tel?(' · <a href="tel:'+a.tel+'" style="color:#03c75a;text-decoration:none">'+a.tel+'</a>'):'') + '</div>' +
         (detail ? '<div style="font-size:12px;color:#888">상세: ' + detail + '</div>' : '') +
         '</div>';
     });
@@ -545,7 +573,7 @@ function openGroupInfo(group){
     var tel = a.tel ? '<div class="tel">전화 <a href="tel:' + a.tel + '">' + a.tel + '</a></div>' : '';
     var stn = near ? '<div style="margin-top:4px">가까운 역: <b>' + near.station + (near.line?(' '+near.line):'') + '</b> (약 ' + near.dist + 'm)</div>' : '';
     html += '<b>' + a.branch + '</b><br><span style="color:#03c75a">' + a.agency + '</span> · ' + (a.hq||'') + '<br>' + a.addr + '<br>' + tel + stn +
-      '<div style="color:#999;font-size:11px;margin-top:4px">위촉설계사 ' + (a.fp||0) + '명 · 개시 ' + a.start + '</div>';
+      '<div style="color:#999;font-size:11px;margin-top:4px">위촉설계사 ' + (a.fp||0) + '명 · 방문 ' + (a.visits||0) + '회 · 개시 ' + a.start + '</div>';
   }
   html += '</div>';
   infoWindow.setContent(html);
@@ -561,6 +589,8 @@ function matchFilter(m){
   if (f.hq && a.hq !== f.hq) return false;
   if (f.branch && a.branch !== f.branch) return false;
   if (f.fp && fpBucket(a.fp) !== f.fp) return false;
+  if (f.visit === 'visited' && !((a.visits||0) > 0)) return false;
+  if (f.visit === 'notvisited' && ((a.visits||0) > 0)) return false;
   if (f.line && !(m.nearest && m.nearest.line === f.line)) return false;
   if (f.station && !(m.nearest && m.nearest.station === f.station)) return false;
   return true;
@@ -585,7 +615,7 @@ function render(){
     const div = document.createElement('div');
     div.className = 'item' + (m.fail?' fail':'');
     div.innerHTML = '<div class="name"><span class="dot" style="background:' + fpColor(a.fp) + '"></span>' + a.branch + '</div>' +
-      '<div class="meta">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명 · ' + (a.tel||'연락처 없음') + '</div>' +
+      '<div class="meta">' + a.agency + ' · 위촉 ' + (a.fp||0) + '명 · 방문 ' + (a.visits||0) + '회 · ' + (a.tel||'연락처 없음') + '</div>' +
       '<div class="addr">' + a.addr + (m.fail?' (주소변환 실패)':'') + '</div>' +
       (stn ? '<div class="stninfo">' + stn + '</div>' : '');
     if (!m.fail && m.group) div.addEventListener('click', (function(gr){ return function(){ openGroupInfo(gr); }; })(m.group));
@@ -653,7 +683,7 @@ function renderList(){
     else { stn = '<span class="muted">계산 중</span>'; dist = '—'; }
     html += '<tr><td>' + n + '</td><td>' + a.agency + '</td><td>' + (a.hq||'') + '</td><td>' + a.branch + '</td>' +
             '<td class="addr">' + a.addr + '</td><td>' + (a.tel||'-') + '</td>' +
-            '<td>' + (a.fp||0) + '</td><td>' + (a.start||'') + '</td>' +
+            '<td>' + (a.fp||0) + '</td><td>' + (a.visits||0) + '</td><td>' + (a.start||'') + '</td>' +
             '<td>' + stn + '</td><td>' + dist + '</td></tr>';
   });
   body.innerHTML = html;
