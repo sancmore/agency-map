@@ -214,13 +214,14 @@ function parseWorkbook(wb){
   let hi = rows.findIndex(function(r){ return r.indexOf('주소') >= 0; });
   if (hi < 0) hi = 0;
   const H = rows[hi].map(function(x){ return String(x).trim(); });
-  const c = { agency:H.indexOf('대리점명'), hq:H.indexOf('본부명'), branch:H.indexOf('지점명'), start:H.indexOf('개시일자'), fp:H.indexOf('위촉설계사'), tel:H.indexOf('연락처'), addr:H.indexOf('주소'), visits:H.indexOf('방문') };
+  const c = { agency:H.indexOf('대리점명'), hq:H.indexOf('본부명'), branch:H.indexOf('지점명'), start:H.indexOf('개시일자'), fp:H.indexOf('위촉설계사'), tel:H.indexOf('연락처'), addr:H.indexOf('주소'), visits:H.indexOf('방문'), excl:H.indexOf('대상제외') };
   if (c.addr < 0) return [];
   const out = [];
   for (let i = hi+1; i < rows.length; i++){
     const r = rows[i]; if (!r) continue;
     const addr = normalizeAddr(r[c.addr]);
     if (!addr) continue;
+    if (c.excl >= 0 && String(r[c.excl]||'').trim() === '1') continue;
     out.push({ agency:String(r[c.agency]||'').trim(), hq:String(r[c.hq]||'').trim(), branch:String(r[c.branch]||'').trim(),
                start:String(r[c.start]||'').slice(0,10), fp:Number(r[c.fp])||0, tel:String(r[c.tel]||'').trim(), addr:addr, visits:(c.visits>=0?(Number(r[c.visits])||0):0) });
   }
