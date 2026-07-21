@@ -235,9 +235,8 @@ function handleListFile(file){
         const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
         const data = parseWorkbook(wb);
         if (!data.length){ alert('주소가 있는 데이터를 찾지 못했습니다. 엑셀 형식(대리점명·본부명·지점명·위촉설계사·연락처·주소)을 확인해주세요.'); return; }
-        if (confirm('업데이트된 목록 ' + data.length + '곳을 반영할까요? (현재 ' + AGENCIES.length + '곳) — 반영 후 새로고침됩니다.')){
-          localStorage.setItem('agencies_data_v1', JSON.stringify(data));
-          location.reload();
+        if (confirm('업데이트된 목록 ' + data.length + '곳을 반영할까요? (현재 ' + AGENCIES.length + '곳)')){
+          applyNewList(data);
         }
       } catch(err){ alert('엑셀을 읽는 중 오류가 발생했습니다: ' + err.message); }
     };
@@ -294,11 +293,7 @@ function init(){
   bindFilters();
   bindNav();
   renderList();
-  setStatus("geocoder 준비 중…", false);
-  waitForGeocoder(8000).then(function(ok){
-    if (!ok){ setStatus("geocoder 서브모듈 로드 실패. 콘솔에서 Geocoding 이용 신청을 확인하세요.", false); return; }
-    geocodeAll();
-  });
+  ensureGeocoderThen(function(){ geocodeAll(); });
 }
 function waitForGeocoder(timeoutMs){
   return new Promise(function(resolve){
@@ -309,6 +304,40 @@ function waitForGeocoder(timeoutMs){
       setTimeout(check, 100);
     })();
   });
+}
+
+/* geocoder 준비 대기 + 1회 자동 재시도 (느린 네트워크·재로드 대응) */
+function ensureGeocoderThen(cb){
+  setStatus('geocoder 준비 중…', false);
+  waitForGeocoder(20000).then(function(ok){
+    if (ok) return cb();
+    setStatus('geocoder 재시도 중…', false);
+    var key = localStorage.getItem('naver_key') || '';
+    var idx = parseInt(localStorage.getItem('auth_param_idx') || '0', 10);
+    if (idx >= AUTH_PARAMS.length) idx = 0;
+    loadMapsScript(key, AUTH_PARAMS[idx]).catch(function(){}).then(function(){
+      waitForGeocoder(20000).then(function(ok2){
+        if (ok2) return cb();
+        setStatus('geocoder 로드 실패 — 네트워크 상태를 확인한 뒤 새로고침해 주세요.', false);
+      });
+    });
+  });
+}
+
+/* 새 목록을 새로고침 없이 제자리 반영 */
+function applyNewList(data){
+  try { localStorage.setItem('agencies_data_v1', JSON.stringify(data)); } catch(e){}
+  AGENCIES = data;
+  if (infoWindow) infoWindow.close();
+  groups.forEach(function(g){ if (g.marker) g.marker.setMap(null); });
+  groups = []; markers = [];
+  var fb = document.getElementById('failBox'); if (fb) fb.remove();
+  document.getElementById('total').textContent = AGENCIES.length;
+  activeFilter = {};
+  ['fAgency','fHq','fBranch','fFp','fVisit','fLine','fStation'].forEach(function(id){ var e = document.getElementById(id); if (e) e.value = ''; });
+  buildFilters();
+  renderList();
+  ensureGeocoderThen(function(){ geocodeAll(); });
 }
 
 /* ===== 위촉설계사수 구간 & 색상 ===== */
